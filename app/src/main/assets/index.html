@@ -240,6 +240,91 @@ if(b.dataset.musicDelete!==undefined){const i=Number(b.dataset.musicDelete);if(p
 if(b.dataset.musicCommand){command(b.dataset.musicCommand)}
 });
 document.addEventListener('change',e=>{if(e.target.id==='musicBrowserFile'){for(const file of e.target.files){if(!file.type.startsWith('audio/'))continue;tracks.push({name:file.name,url:URL.createObjectURL(file),native:false})}render()}});
+window.snamberiMusicAPI={list:()=>tracks.map((t,i)=>({index:i,name:t.name,native:t.native})),play:i=>playTrack(i)};
+render();
+})();
+</script>
+<style id="five-tools-style">
+.hub-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}.hub-tile{padding:17px;border-radius:20px;background:linear-gradient(145deg,#b9d5ff22,#8e9ee416);border:1px solid #e0ebff2f}.hub-tile .big{font-size:26px;font-weight:800;margin-top:6px}.hub-tile .muted{font-size:12px}.hub-list{display:flex;flex-direction:column;gap:9px}.hub-event{padding:12px;border:1px solid #dbe8ff28;border-radius:14px;background:#b9d3ff0e;display:flex;justify-content:space-between;gap:8px}.hub-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.hub-form .full{grid-column:1/-1}.hub-action{display:flex;flex-wrap:wrap;gap:9px}.hub-action button{flex:1}.session-clock{font-size:48px;font-variant-numeric:tabular-nums;letter-spacing:-2px;text-align:center;padding:14px 0;font-weight:800}.session-status{text-align:center;color:#b9c9e1;font-size:13px}.plan-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid #dbe8ff21}.plan-row:last-child{border:0}.plan-row button{padding:8px}.plan-item{border:1px solid #dbe8ff26;border-radius:16px;padding:14px;margin:9px 0;background:#b9d3ff0c}@media(max-width:520px){.hub-grid{grid-template-columns:1fr 1fr}.hub-form{grid-template-columns:1fr}.hub-form .full{grid-column:auto}.session-clock{font-size:40px}}
+</style>
+<script id="five-tools-script">
+(function(){
+const sections=['Today','Routines','Workout Log','Playlists','Sessions'];for(const x of sections)if(!tabs.includes(x))tabs.push(x);
+state.extra??={};const extra=state.extra;for(const k of ['routines','workoutHistory','playlists','focusHistory'])if(!Array.isArray(extra[k]))extra[k]=[];
+let active='';let started=0,elapsedBefore=0,sessionTick=null;let selectedRoutine=0;
+const id=()=>crypto.randomUUID(),v=x=>document.getElementById(x)?.value.trim()||'';
+const input=(name,label,type='text',attrs='')=>'<label class="stack"><span class="muted small">'+label+'</span><input class="field" id="'+name+'" type="'+type+'" '+attrs+'></label>';
+const form=(name,inside)=>'<form id="'+name+'" class="hub-form">'+inside+'<button class="btn full">Save</button></form>';
+const short=(s,n=70)=>esc(String(s).slice(0,n));
+const list=(items,renderItem,empty='Nothing recorded yet.')=>items.length?items.map(renderItem).join(''):'<p class="muted small">'+empty+'</p>';
+const timestamp=()=>new Date().toISOString();
+const recentMeals=()=>state.calorieLogs||[];
+function todayView(){
+const d=today(),day=new Date(d+'T12:00:00').getDay();
+const recurring=(state.recurring||[]).filter(x=>x.day===day).map(x=>({title:x.title,time:x.time||'',type:x.type}));
+const events=state.events.filter(x=>x.date===d).map(x=>({title:x.title,time:x.time||'',type:x.type}));
+const tasks=(state.life?.tasks||[]).filter(x=>!x.done&&(!x.due||x.due<=d));
+const water=(state.life?.water||[]).filter(x=>x.date===d).reduce((a,x)=>a+(Number(x.ml)||0),0);
+const meals=recentMeals().filter(x=>x.date===d).length+state.meals.filter(x=>x.date===d).length;
+const done=completed(d),total=state.habits.length;
+return '<div class="glass-hero"><div class="small muted">YOUR DAY · '+d+'</div><h1>Good to see you.</h1><p>Here is what matters today. You can change your plan anytime.</p></div>'+
+'<div class="hub-grid"><div class="hub-tile"><div class="muted">Habits</div><div class="big">'+done+' / '+total+'</div></div><div class="hub-tile"><div class="muted">Water logged</div><div class="big">'+water+' mL</div></div><div class="hub-tile"><div class="muted">Meals logged</div><div class="big">'+meals+'</div></div><div class="hub-tile"><div class="muted">Open tasks</div><div class="big">'+tasks.length+'</div></div></div>'+
+card('Today’s schedule','<div class="hub-list">'+list([...recurring,...events].sort((a,b)=>(a.time||'99:99').localeCompare(b.time||'99:99')),x=>'<div class="hub-event"><div><b>'+short(x.title)+'</b><div class="muted small">'+short(x.type)+'</div></div><span class="tag">'+short(x.time||'Flexible')+'</span></div>','No activities scheduled for today.')+'</div>')+
+card('Tasks to finish',list(tasks.slice(0,10),x=>'<div class="hub-event"><b>'+short(x.text)+'</b><span class="muted small">'+short(x.due||'Anytime')+'</span></div>','All clear!'))+
+card('Quick launch','<div class="hub-action"><button class="btn secondary" data-hub-go="Workout">Gym mode</button><button class="btn secondary" data-hub-go="Music">Music</button><button class="btn secondary" data-hub-go="Sessions">Focus</button><button class="btn secondary" data-hub-go="Nutrition">Food</button></div>');
+}
+function routinesView(){
+const r=extra.routines[selectedRoutine];return '<div class="glass-hero"><div class="small muted">BUILD YOUR PLAN</div><h1>Custom gym routines</h1><p>Create workouts with exercises, sets, reps and rest times. Use them during gym mode.</p></div>'+
+card('New routine',form('newRoutine',input('routineName','Routine name','text','required placeholder="Upper body, legs, recovery..."')))+
+card('Your routines',list(extra.routines,(x,i)=>'<div class="plan-row"><div><b>'+short(x.name)+'</b><div class="muted small">'+x.exercises.length+' exercises</div></div><div class="hub-action"><button class="btn secondary" data-routine-select="'+i+'">Edit</button><button class="btn secondary" data-routine-delete="'+esc(x.id)+'">Delete</button></div></div>'))+
+(r?card('Edit · '+short(r.name),form('addExercise',input('exerciseName','Exercise','text','required placeholder="Goblet squat"')+input('exerciseSets','Sets','number','required min="1" max="20" value="3"')+input('exerciseReps','Reps or duration','text','required placeholder="8–12 or 10 min"')+input('exerciseRest','Rest (seconds)','number','required min="0" max="900" value="90"'))+list(r.exercises,(x,i)=>'<div class="plan-item"><div class="plan-row"><div><b>'+short(x.name)+'</b><div class="muted small">'+short(x.sets+' sets · '+x.reps+' · '+x.rest+' sec rest')+'</div></div><button class="btn secondary" data-exercise-delete="'+i+'">Remove</button></div></div>')+'<div class="hub-action"><button class="btn" data-routine-start="1">Start routine</button><button class="btn secondary" data-routine-log="1">Log workout</button></div>'):'')+
+card('Guidance','<p class="muted small">Choose manageable loads, warm up and prioritize technique. Routines are editable plans, not medical or coaching prescriptions.</p>');
+}
+function historyView(){return '<div class="glass-hero"><div class="small muted">TRAINING JOURNAL</div><h1>Workout history</h1><p>Record sessions, duration and how you felt. Review your consistency over time.</p></div>'+
+card('Log completed workout',form('logWorkout',input('logWorkoutName','Workout','text','required placeholder="Full body"')+input('logWorkoutMinutes','Duration (minutes)','number','required min="1" max="600"')+input('logWorkoutNotes','Notes','text','placeholder="Sets, weights, energy..."')))+
+card('Past workouts',list(extra.workoutHistory.slice().reverse(),x=>'<div class="plan-row"><div><b>'+short(x.name)+'</b><div class="muted small">'+short(x.date)+' · '+short(x.minutes)+' min</div><div class="muted small">'+short(x.notes)+'</div></div><button class="btn secondary" data-history-delete="'+esc(x.id)+'">Remove</button></div>'));}
+function playlistView(){
+const api=window.snamberiMusicAPI;const tracks=api?.list()||[];
+return '<div class="glass-hero"><div class="small muted">YOUR PLAYLISTS</div><h1>Workout soundtrack</h1><p>Organize the songs you selected in Music into named playlists.</p></div>'+
+card('Create playlist',form('newPlaylist',input('playlistName','Playlist name','text','required placeholder="Gym energy"')))+
+card('Your playlists',list(extra.playlists,x=>'<div class="plan-item"><div class="plan-row"><b>'+short(x.name)+'</b><button class="btn secondary" data-playlist-delete="'+esc(x.id)+'">Delete</button></div>'+list(x.tracks,(t,i)=>'<div class="plan-row"><div><b>'+short(t.name)+'</b></div><div class="hub-action"><button class="btn secondary" data-playlist-play="'+esc(x.id)+':'+i+'">Play</button><button class="btn secondary" data-playlist-remove="'+esc(x.id)+':'+i+'">✕</button></div></div>','Playlist empty')+'<label class="stack"><span class="muted small">Add track from Music</span><select class="field" data-playlist-track="'+esc(x.id)+'"><option value="">Choose track</option>'+tracks.map(t=>'<option value="'+t.index+'">'+short(t.name)+'</option>').join('')+'</select></label></div>'))+
+card('Music source','<p class="muted small">Add local audio files in the Music tab first. Playlists remember song names and Android file references; tracks from browser-only sessions cannot be restored after restarting.</p>');
+}
+const seconds=()=>Math.max(0,elapsedBefore+(active?Math.floor((Date.now()-started)/1000):0));
+const clock=s=>String(Math.floor(s/3600)).padStart(2,'0')+':'+String(Math.floor(s%3600/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
+function sessionsView(){return '<div class="glass-hero"><div class="small muted">DEEP WORK</div><h1>Focus sessions</h1><p>Time coding, studying or other work, and save your session history.</p></div>'+
+card('Focus timer','<label class="stack"><span class="muted small">What are you working on?</span><input id="sessionLabel" class="field" placeholder="Programming, homework, CourtVision..." value="'+short(window.focusLabel||'')+'"></label><div id="sessionClock" class="session-clock">'+clock(seconds())+'</div><div class="session-status">'+(active?'Session running':'Paused or ready')+'</div><div class="hub-action" style="margin-top:15px"><button class="btn" data-session="toggle">'+(active?'Pause':'Start')+'</button><button class="btn secondary" data-session="finish">Finish & save</button><button class="btn secondary" data-session="reset">Reset</button></div>')+
+card('Session history',list(extra.focusHistory.slice().reverse(),x=>'<div class="plan-row"><div><b>'+short(x.label)+'</b><div class="muted small">'+short(x.date)+' · '+Math.round(x.seconds/60)+' min</div></div><button class="btn secondary" data-session-delete="'+esc(x.id)+'">Remove</button></div>'));}
+const oldRender=render;
+render=function(){
+if(sections.includes(tab)){document.getElementById('levelPill').textContent='Level '+level()+' · '+xp()+' XP';document.getElementById('nav').innerHTML=tabs.map(t=>'<button class="'+(t===tab?'active':'')+'" data-tab="'+t+'">'+t+'</button>').join('');document.getElementById('view').innerHTML=({Today:todayView,Routines:routinesView,'Workout Log':historyView,Playlists:playlistView,Sessions:sessionsView})[tab]()}
+else oldRender();
+};
+function tick(){if(tab==='Sessions'){const el=document.getElementById('sessionClock');if(el)el.textContent=clock(seconds())}}
+sessionTick=setInterval(tick,1000);
+document.addEventListener('submit',e=>{
+const k=e.target.id;if(!['newRoutine','addExercise','logWorkout','newPlaylist'].includes(k))return;e.preventDefault();
+if(k==='newRoutine'){const name=v('routineName');if(name){extra.routines.push({id:id(),name,exercises:[]});selectedRoutine=extra.routines.length-1;save()}}
+if(k==='addExercise'){const r=extra.routines[selectedRoutine];if(r&&v('exerciseName')){r.exercises.push({name:v('exerciseName'),sets:Number(v('exerciseSets')),reps:v('exerciseReps'),rest:Number(v('exerciseRest'))});save()}}
+if(k==='logWorkout'){if(v('logWorkoutName')){extra.workoutHistory.push({id:id(),date:today(),name:v('logWorkoutName'),minutes:Number(v('logWorkoutMinutes')),notes:v('logWorkoutNotes')});save()}}
+if(k==='newPlaylist'){if(v('playlistName')){extra.playlists.push({id:id(),name:v('playlistName'),tracks:[]});save()}}
+});
+document.addEventListener('change',e=>{const b=e.target;if(b.dataset.playlistTrack){const p=extra.playlists.find(x=>x.id===b.dataset.playlistTrack);const t=window.snamberiMusicAPI?.list()?.[Number(b.value)];if(p&&t&&b.value!==''){p.tracks.push({name:t.name,native:t.native});save()}}});
+document.addEventListener('click',e=>{
+const b=e.target.closest('[data-hub-go],[data-routine-select],[data-routine-delete],[data-exercise-delete],[data-routine-start],[data-routine-log],[data-history-delete],[data-playlist-delete],[data-playlist-play],[data-playlist-remove],[data-session],[data-session-delete]');if(!b)return;
+if(b.dataset.hubGo){tab=b.dataset.hubGo;render();return}
+if(b.dataset.routineSelect!==undefined){selectedRoutine=Number(b.dataset.routineSelect);render();return}
+if(b.dataset.routineDelete){extra.routines=extra.routines.filter(x=>x.id!==b.dataset.routineDelete);selectedRoutine=0;save();return}
+if(b.dataset.exerciseDelete!==undefined){extra.routines[selectedRoutine]?.exercises.splice(Number(b.dataset.exerciseDelete),1);save();return}
+if(b.dataset.routineStart){const r=extra.routines[selectedRoutine];if(r){window.snamberiActiveRoutine=r;tab='Workout';render();alert('Routine selected: '+r.name+'. Follow the custom plan in Routines while using Gym mode for demonstrations and rest timer.');}return}
+if(b.dataset.routineLog){const r=extra.routines[selectedRoutine];if(r){extra.workoutHistory.push({id:id(),date:today(),name:r.name,minutes:0,notes:r.exercises.map(x=>x.name+' '+x.sets+'×'+x.reps).join('; ')});save()}return}
+if(b.dataset.historyDelete){extra.workoutHistory=extra.workoutHistory.filter(x=>x.id!==b.dataset.historyDelete);save();return}
+if(b.dataset.playlistDelete){extra.playlists=extra.playlists.filter(x=>x.id!==b.dataset.playlistDelete);save();return}
+if(b.dataset.playlistRemove){const [pid,i]=b.dataset.playlistRemove.split(':');extra.playlists.find(x=>x.id===pid)?.tracks.splice(Number(i),1);save();return}
+if(b.dataset.playlistPlay){const [pid,i]=b.dataset.playlistPlay.split(':');const t=extra.playlists.find(x=>x.id===pid)?.tracks[Number(i)];const all=window.snamberiMusicAPI?.list()||[];const track=all.find(x=>x.name===t?.name);if(track)window.snamberiMusicAPI.play(track.index);else alert('Add this song again in Music before playing.');return}
+if(b.dataset.session){window.focusLabel=v('sessionLabel');if(b.dataset.session==='toggle'){if(active){elapsedBefore=seconds();active=''}else{started=Date.now();active='yes'}}else if(b.dataset.session==='finish'){const sec=seconds();if(sec){extra.focusHistory.push({id:id(),date:today(),label:window.focusLabel||'Focus',seconds:sec});save()}active='';elapsedBefore=0}else{active='';elapsedBefore=0}render();return}
+if(b.dataset.sessionDelete){extra.focusHistory=extra.focusHistory.filter(x=>x.id!==b.dataset.sessionDelete);save()}
+});
 render();
 })();
 </script></body></html>
