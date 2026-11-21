@@ -11,6 +11,7 @@ import java.net.URLEncoder;
 public class MainActivity extends Activity {
  WebView web;
  private static final int PICK_AUDIO=310;
+ private static final int PICK_MUSIC=311;
  private ValueCallback<Uri[]> uploadCallback;
  @Override public void onCreate(Bundle b){
   super.onCreate(b);
@@ -37,12 +38,20 @@ public class MainActivity extends Activity {
  }
  @Override protected void onActivityResult(int req,int result,Intent data){
   super.onActivityResult(req,result,data);
+  if(req==PICK_MUSIC&&result==RESULT_OK&&data!=null&&data.getData()!=null){
+   Uri u=data.getData();
+   try{getContentResolver().takePersistableUriPermission(u,Intent.FLAG_GRANT_READ_URI_PERMISSION);}catch(Exception ignored){}
+   String uri=u.toString();
+   String label=u.getLastPathSegment();if(label==null)label="Selected audio";
+   web.evaluateJavascript("window.snamberiMusicPicked("+org.json.JSONObject.quote(uri)+","+org.json.JSONObject.quote(label)+")",null);
+  }
   if(req==PICK_AUDIO&&uploadCallback!=null){
    uploadCallback.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(result,data));
    uploadCallback=null;
   }
  }
  class Bridge {
+  @JavascriptInterface public void pickMusic(){runOnUiThread(()->{Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT);i.addCategory(Intent.CATEGORY_OPENABLE);i.setType("audio/*");i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);startActivityForResult(i,PICK_MUSIC);});}
   @JavascriptInterface public void openExternal(String url){runOnUiThread(()->{try{Uri u=Uri.parse(url);if(!"https".equals(u.getScheme())||!"www.instagram.com".equals(u.getHost()))return;startActivity(new Intent(Intent.ACTION_VIEW,u));}catch(Exception e){android.util.Log.e("Snamberi","Instagram",e);}});}
   @JavascriptInterface public void openChatGPT(String prompt){runOnUiThread(()->{try{startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse("https://chatgpt.com/?q="+URLEncoder.encode(prompt,"UTF-8"))));}catch(Exception e){android.util.Log.e("Snamberi","ChatGPT",e);}});}
   @JavascriptInterface public void sync(String json){getSharedPreferences("reminders",0).edit().putString("schedule",json).apply();ReminderReceiver.scheduleAll(MainActivity.this,json);}
