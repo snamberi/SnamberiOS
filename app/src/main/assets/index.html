@@ -107,4 +107,54 @@ if(e.target.closest('[data-action="foodAnalyze"]')){const description=document.g
 });
 render();
 })();
+</script>
+<style id="life-tools-style">
+.life-mini{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.life-mini>div{padding:14px;border-radius:16px;border:1px solid #d4e5ff24;background:#aac8ff13}.life-mini strong{display:block;font-size:21px;margin-top:5px}.life-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:12px}.life-form .full{grid-column:1/-1}.life-row{display:flex;justify-content:space-between;align-items:center;gap:9px;border-bottom:1px solid #d4e5ff20;padding:10px 0}.life-row:last-child{border-bottom:0}.life-row button{padding:7px 10px;font-size:12px}.life-tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}.life-tabs button{border:1px solid #d4e5ff33;border-radius:99px;background:#c0d7ff14;color:#e8f0ff;padding:8px 12px;font-size:12px}.life-tabs button.active{background:#a5c7ff55}.life-sub{font-size:12px;color:#a8b9d6}@media(max-width:420px){.life-form{grid-template-columns:1fr}.life-form .full{grid-column:auto}}
+</style>
+<script id="life-tools-script">
+(function(){
+const sections=['Tasks','Study','Hydration','Recovery','Basketball','Budget','Mood','Packing'];
+const init=()=>{state.life??={};for(const k of ['tasks','study','water','recovery','drills','expenses','moods','packing'])if(!Array.isArray(state.life[k]))state.life[k]=[]};
+init();let section='Tasks';
+const field=(id,label,type='text',extra='')=>'<label class="stack"><span class="life-sub">'+label+'</span><input class="field" id="'+id+'" type="'+type+'" '+extra+'></label>';
+const form=(id,inner)=>'<form class="life-form" id="'+id+'">'+inner+'<button class="btn full" type="submit">Save entry</button></form>';
+const item=(x,body,arr)=>'<div class="life-row"><div style="min-width:0">'+body+'</div><button class="btn secondary" data-life-delete="'+arr+':'+esc(x.id)+'">Remove</button></div>';
+const entries=(arr,fn)=>state.life[arr].slice().reverse().slice(0,40).map(x=>item(x,fn(x),arr)).join('')||'<p class="muted small">Nothing logged yet.</p>';
+const n=(v)=>Number(v)||0;
+function lifeView(){
+const l=state.life;const day=today();let content='';
+if(section==='Tasks')content=card('To-do list',form('lifeTask',field('lifeTaskText','Task','text','required')+field('lifeTaskDue','Due date','date','value="'+day+'"')))+card('Tasks',l.tasks.map(x=>'<div class="life-row"><label style="display:flex;gap:10px;align-items:center"><input type="checkbox" class="check" data-life-check="'+esc(x.id)+'" '+(x.done?'checked':'')+'><span style="'+(x.done?'text-decoration:line-through;opacity:.55':'')+'"><b>'+esc(x.text)+'</b><div class="life-sub">'+esc(x.due||'No date')+'</div></span></label><button class="btn secondary" data-life-delete="tasks:'+esc(x.id)+'">Remove</button></div>').join('')||'<p class="muted small">No tasks yet.</p>');
+if(section==='Study')content=card('Study / coding sessions',form('lifeStudy',field('lifeStudyTopic','Topic','text','required')+field('lifeStudyMinutes','Minutes','number','min="1" max="1440" required')))+card('Recent sessions',entries('study',x=>'<b>'+esc(x.topic)+'</b><div class="life-sub">'+esc(x.date)+' · '+esc(x.minutes)+' minutes</div>')));
+if(section==='Hydration')content=card('Water log', '<p class="muted small">Log drinks without rigid targets. Needs vary with weather and basketball activity.</p><div class="life-mini"><div>Today<strong>'+l.water.filter(x=>x.date===day).reduce((a,x)=>a+n(x.ml),0)+' mL</strong></div><div>Entries<strong>'+l.water.filter(x=>x.date===day).length+'</strong></div></div>'+form('lifeWater',field('lifeWaterMl','Water (mL)','number','min="1" max="3000" required')))+card('Water history',entries('water',x=>'<b>'+esc(x.ml)+' mL</b><div class="life-sub">'+esc(x.date)+'</div>')));
+if(section==='Recovery')content=card('Recovery check-in', '<p class="muted small">Track soreness and energy to help notice when to rest. Severe pain or injury needs medical advice.</p>'+form('lifeRecovery','<label class="stack"><span class="life-sub">Energy</span><select id="lifeEnergy" class="field"><option>Good</option><option>Okay</option><option>Low</option></select></label><label class="stack"><span class="life-sub">Soreness</span><select id="lifeSoreness" class="field"><option>None</option><option>Mild</option><option>Moderate</option><option>High</option></select></label>'+field('lifeRecoveryNote','Notes','text')))+card('Check-ins',entries('recovery',x=>'<b>'+esc(x.energy)+' energy · '+esc(x.soreness)+' soreness</b><div class="life-sub">'+esc(x.date)+' · '+esc(x.note)+'</div>')));
+if(section==='Basketball')content=card('Basketball skills tracker',form('lifeDrill',field('lifeDrillName','Drill (e.g. handles vs pressure)','text','required')+field('lifeDrillMinutes','Minutes','number','min="1" max="600" required')+field('lifeDrillNotes','Notes','text')))+card('Practice history',entries('drills',x=>'<b>'+esc(x.name)+'</b><div class="life-sub">'+esc(x.date)+' · '+esc(x.minutes)+' min · '+esc(x.note)+'</div>')));
+if(section==='Budget')content=card('Personal spending (GEL)', '<div class="life-mini"><div>Spent this month<strong>'+l.expenses.filter(x=>x.date.slice(0,7)===day.slice(0,7)).reduce((a,x)=>a+n(x.amount),0).toFixed(2)+' ₾</strong></div><div>Entries<strong>'+l.expenses.length+'</strong></div></div>'+form('lifeExpense',field('lifeExpenseName','What for?','text','required')+field('lifeExpenseAmount','Amount (GEL)','number','min="0.01" max="100000" step="0.01" required')))+card('Spending history',entries('expenses',x=>'<b>'+esc(x.name)+' · '+esc(x.amount)+' ₾</b><div class="life-sub">'+esc(x.date)+'</div>')));
+if(section==='Mood')content=card('How was today?',form('lifeMood','<label class="stack"><span class="life-sub">Mood</span><select class="field" id="lifeMoodValue"><option>Great</option><option>Good</option><option>Okay</option><option>Rough</option></select></label>'+field('lifeMoodNote','Anything on your mind?','text')))+card('Mood journal',entries('moods',x=>'<b>'+esc(x.mood)+'</b><div class="life-sub">'+esc(x.date)+' · '+esc(x.note)+'</div>')));
+if(section==='Packing')content=card('School / gym / basketball bag checklist',form('lifePacking',field('lifePackingText','Item to pack','text','required')))+card('Checklist',l.packing.map(x=>'<div class="life-row"><label style="display:flex;gap:10px;align-items:center"><input class="check" type="checkbox" data-life-pack="'+esc(x.id)+'" '+(x.done?'checked':'')+'><span>'+esc(x.text)+'</span></label><button class="btn secondary" data-life-delete="packing:'+esc(x.id)+'">Remove</button></div>').join('')||'<p class="muted small">Add things you need to bring.</p>');
+return '<div class="glass-hero"><div class="small muted">YOUR DAILY TOOLKIT</div><h1>Life organizer</h1><p>Eight simple tools for school, training, recovery and everyday routines. Stored on this device.</p></div><div class="life-tabs">'+sections.map(x=>'<button type="button" data-life-section="'+x+'" class="'+(section===x?'active':'')+'">'+x+'</button>').join('')+'</div>'+content;
+}
+const prior=render;
+render=function(){if(tab==='Life'){document.getElementById('levelPill').textContent='Level '+level()+' · '+xp()+' XP';document.getElementById('nav').innerHTML=tabs.map(t=>'<button class="'+(t===tab?'active':'')+'" data-tab="'+t+'">'+t+'</button>').join('');document.getElementById('view').innerHTML=lifeView()}else prior()};
+tabs.splice(tabs.indexOf('AI'),0,'Life');
+const value=id=>document.getElementById(id)?.value.trim()||'';
+document.addEventListener('submit',e=>{
+const kind=e.target.id;if(!kind.startsWith('life'))return;e.preventDefault();
+const id=crypto.randomUUID(),date=today();let k='',x={id,date};
+switch(kind){
+case'lifeTask':k='tasks';x.text=value('lifeTaskText');x.due=value('lifeTaskDue');x.done=false;break;
+case'lifeStudy':k='study';x.topic=value('lifeStudyTopic');x.minutes=value('lifeStudyMinutes');break;
+case'lifeWater':k='water';x.ml=value('lifeWaterMl');break;
+case'lifeRecovery':k='recovery';x.energy=value('lifeEnergy');x.soreness=value('lifeSoreness');x.note=value('lifeRecoveryNote');break;
+case'lifeDrill':k='drills';x.name=value('lifeDrillName');x.minutes=value('lifeDrillMinutes');x.note=value('lifeDrillNotes');break;
+case'lifeExpense':k='expenses';x.name=value('lifeExpenseName');x.amount=value('lifeExpenseAmount');break;
+case'lifeMood':k='moods';x.mood=value('lifeMoodValue');x.note=value('lifeMoodNote');break;
+case'lifePacking':k='packing';x.text=value('lifePackingText');x.done=false;break;
+default:return;
+}
+if(k&&Object.values(x).some(v=>v!=='')){state.life[k].push(x);save()}
+});
+document.addEventListener('click',e=>{const b=e.target.closest('[data-life-section],[data-life-delete]');if(!b)return;if(b.dataset.lifeSection){section=b.dataset.lifeSection;render()}else if(b.dataset.lifeDelete){const [k,id]=b.dataset.lifeDelete.split(':');if(state.life[k]){state.life[k]=state.life[k].filter(x=>x.id!==id);save()}}});
+document.addEventListener('change',e=>{const t=e.target;if(t.dataset.lifeCheck){const x=state.life.tasks.find(x=>x.id===t.dataset.lifeCheck);if(x){x.done=t.checked;save()}}if(t.dataset.lifePack){const x=state.life.packing.find(x=>x.id===t.dataset.lifePack);if(x){x.done=t.checked;save()}}});
+render();
+})();
 </script></body></html>
