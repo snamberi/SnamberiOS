@@ -51,7 +51,7 @@ function aiView(){return `<div class="glass-hero"><div class="small muted">PERSO
 card('Ask ChatGPT',`<textarea id="aiPrompt" class="field" rows="4" placeholder="What should I focus on today?"></textarea><div class="ai-actions" style="margin-top:12px"><button class="btn" data-action="askAI">Ask ChatGPT ↗</button><button class="btn secondary" data-action="planAI">Plan my week ↗</button></div><p class="muted small">Your prompt opens in ChatGPT. This app does not automatically share your health logs or personal data.</p>`)+
 card('Quick ideas',`<div class="stack"><button class="btn secondary" data-action="aiWorkout">Make a balanced 5-day gym plan</button><button class="btn secondary" data-action="aiSchool">Help organize my Thursday</button><button class="btn secondary" data-action="aiMeals">Suggest practical balanced meals</button></div>`);
 }
-function openAI(prompt){const text=prompt||document.getElementById('aiPrompt')?.value.trim()||'Help me plan my day';window.open('https://chatgpt.com/?q='+encodeURIComponent(text),'_blank');}
+function openAI(prompt){const text=prompt||document.getElementById('aiPrompt')?.value.trim()||'Help me plan my day';if(window.AndroidReminders&&window.AndroidReminders.openChatGPT){window.AndroidReminders.openChatGPT(text)}else{window.open('https://chatgpt.com/?q='+encodeURIComponent(text),'_blank')}}
 const originalRender=render;
 render=function(){
  if(tab==='Week'){document.getElementById('levelPill').textContent=`Level ${level()} · ${xp()} XP`;document.getElementById('nav').innerHTML=tabs.map(t=>`<button class="${t===tab?'active':''}" data-tab="${t}">${t}</button>`).join('');document.getElementById('view').innerHTML=weekView();return}
