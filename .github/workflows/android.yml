@@ -1,38 +1,75 @@
 name: Build Snamberi OS APK
+
 on:
-  workflow_dispatch:
   push:
     branches: [main]
+    paths-ignore:
+      - 'BUILD_DIAGNOSTICS.md'
+  workflow_dispatch:
+
 permissions:
   contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
-      - name: Checkout source
+      - name: Checkout
         uses: actions/checkout@v4
-      - name: Install Java 17
+      - name: Java 17
         uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
-      - name: Set up Android SDK
+      - name: Android SDK
         uses: android-actions/setup-android@v3
-      - name: Install SDK packages
-        run: sdkmanager --install "platforms;android-35" "build-tools;35.0.0"
-      - name: Install Gradle
+      - name: Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-      - name: Print environment
+      - name: Check project files
+        shell: bash
         run: |
+          set -euxo pipefail
+          test -f settings.gradle
+          test -f build.gradle
+          test -f app/build.gradle
+          test -f app/src/main/AndroidManifest.xml
+          test -f app/src/main/java/com/snamberi/os/MainActivity.java
+          test -f app/src/main/java/com/snamberi/os/ReminderReceiver.java
+          test -f app/src/main/java/com/snamberi/os/BootReceiver.java
+          test -f app/src/main/assets/index.html
           java -version
           gradle --version
-          find app/src/main -maxdepth 5 -type f | sort
-      - name: Build debug APK
-        run: gradle --stacktrace --info --no-daemon assembleDebug
+      - name: Build APK and capture errors
+        id: apk
+        shell: bash
+        run: |
+          set -o pipefail
+          gradle --no-daemon --stacktrace assembleDebug 2>&1 | tee android-build.log
+      - name: Show build failure summary
+        if: failure()
+        shell: bash
+        run: |
+          echo '## Android build failed' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Open the failing step to see the exact error.' >> "$GITHUB_STEP_SUMMARY"
+          if test -f android-build.log; then
+            echo '### Last 100 log lines' >> "$GITHUB_STEP_SUMMARY"
+            echo '```text' >> "$GITHUB_STEP_SUMMARY"
+            tail -n 100 android-build.log >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Upload build log (even on failure)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-build-log
+          path: android-build.log
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Upload APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: SnamberiOS-debug-apk
